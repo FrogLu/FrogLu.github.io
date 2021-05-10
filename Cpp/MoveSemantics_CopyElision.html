@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>浅谈move semantics及copy elision的一点理解 | 丫头</title>
+    <meta name="description" content="Cockroachs apprentice">
+    <link rel="shortcut icon" href="/favicon.png">
+    
+    <link rel="preload" href="/assets/css/0.styles.880d747a.css" as="style"><link rel="preload" href="/assets/js/app.5cd958a4.js" as="script"><link rel="preload" href="/assets/js/4.11e6c145.js" as="script"><link rel="prefetch" href="/assets/js/10.1d3ef236.js"><link rel="prefetch" href="/assets/js/11.5ad2303d.js"><link rel="prefetch" href="/assets/js/3.d33b6324.js"><link rel="prefetch" href="/assets/js/5.2af5a774.js"><link rel="prefetch" href="/assets/js/6.1abda80e.js"><link rel="prefetch" href="/assets/js/7.73013fc7.js"><link rel="prefetch" href="/assets/js/8.a20f9f3f.js"><link rel="prefetch" href="/assets/js/9.4b9057f6.js"><link rel="prefetch" href="/assets/js/vendors~docsearch.c27013e8.js">
+    <link rel="stylesheet" href="/assets/css/0.styles.880d747a.css">
+  </head>
+  <body>
+    <div id="app" data-server-rendered="true"><div class="theme-container custom-page-class"><header class="navbar"><div class="sidebar-button"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img" viewBox="0 0 448 512" class="icon"><path fill="currentColor" d="M436 124H12c-6.627 0-12-5.373-12-12V80c0-6.627 5.373-12 12-12h424c6.627 0 12 5.373 12 12v32c0 6.627-5.373 12-12 12zm0 160H12c-6.627 0-12-5.373-12-12v-32c0-6.627 5.373-12 12-12h424c6.627 0 12 5.373 12 12v32c0 6.627-5.373 12-12 12zm0 160H12c-6.627 0-12-5.373-12-12v-32c0-6.627 5.373-12 12-12h424c6.627 0 12 5.373 12 12v32c0 6.627-5.373 12-12 12z"></path></svg></div> <a href="/" class="home-link router-link-active"><!----> <span class="site-name">丫头</span></a> <div class="links" style="max-width:nullpx;"><form id="search-form" class="algolia-search-wrapper search-box"><input id="algolia-search-input" class="search-query"></form> <nav class="nav-links can-hide"><div class="nav-item"><a href="/Cpp/functionParameter.html" class="nav-link">Cpp</a></div><div class="nav-item"><a href="/Linux/404.html" class="nav-link">Linux</a></div><div class="nav-item"><a href="/PAT/" class="nav-link">PAT</a></div><div class="nav-item"><a href="/Others/Summary/2018.html" class="nav-link">Others</a></div> <a href="https://github.com/FrogLu/FrogLu.github.io" target="_blank" rel="noopener noreferrer" class="repo-link">
+    GitHub
+    <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></nav></div></header> <div class="sidebar-mask"></div> <div class="sidebar"><nav class="nav-links"><div class="nav-item"><a href="/Cpp/functionParameter.html" class="nav-link">Cpp</a></div><div class="nav-item"><a href="/Linux/404.html" class="nav-link">Linux</a></div><div class="nav-item"><a href="/PAT/" class="nav-link">PAT</a></div><div class="nav-item"><a href="/Others/Summary/2018.html" class="nav-link">Others</a></div> <a href="https://github.com/FrogLu/FrogLu.github.io" target="_blank" rel="noopener noreferrer" class="repo-link">
+    GitHub
+    <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></nav>  <ul class="sidebar-links"><li><div class="sidebar-group first"><p class="sidebar-heading open"><span>Expression</span> <!----></p> <ul class="sidebar-group-items"><li><a href="/Cpp/lvalueRvalue.html" class="sidebar-link">lvalue&amp;rvalue</a></li><li><a href="/Cpp/sizeofVector.html" class="sidebar-link">sizeof(vector&lt;type&gt;)</a></li></ul></div></li><li><div class="sidebar-group"><p class="sidebar-heading"><span>Function</span> <!----></p> <ul class="sidebar-group-items"><li><a href="/Cpp/functionParameter.html" class="sidebar-link">函数形参的一些注意点</a></li></ul></div></li></ul> </div> <div class="page"> <div class="content"><h1 id="浅谈move-semantics及copy-elision的一点理解"><a href="#浅谈move-semantics及copy-elision的一点理解" aria-hidden="true" class="header-anchor">#</a> 浅谈move semantics及copy elision的一点理解</h1> <h2 id="背景"><a href="#背景" aria-hidden="true" class="header-anchor">#</a> 背景</h2> <p>对于返回值为对象(为讨论方便，此处所述对象亦包括通常变量所指的内置类型)的函数：</p> <div class="language- extra-class"><pre class="language-text"><code>Object foo(){
+    Object obj;
+
+    return obj;
+}
+</code></pre></div><p>以及诸如：</p> <div class="language- extra-class"><pre class="language-text"><code>Object obj1;
+Object obj2=obj1;   //  assume class Object have defined
+                    //  copy constructor and operator=
+</code></pre></div><p>这样的传值(pass-by-value)操作会形成拷贝，从而调用构造函数和析构函数，产生开销，<br>
+特别地，当Object类是深度定义的很复杂的类时，这将会是不小的开销，从而影响性能。但在C++11<br>
+发布之前，C++标准并没有提供一种很好的解决方案。</p> <p>因为尽管比如返回值为函数局部对象(或对象)的引用或指针的函数，看似避免了返回值的拷贝，<br>
+但这样的行为会给整个程序带来致命隐患，而且这一隐患往往是隐式存在的，难以被察觉和解决的。<br>
+因为函数内的局部对象在函数执行结束返回以后会被销毁，那么返回这个局部对象的引用或指针将会<br>
+是悬垂的，使用这样的引用或指针访问内存块的行为将会是未定义的。</p> <p>其他如在stack空间(通过new动态分配内存)或heap空间(静态局部对象)等方式尽管避免了拷贝开销，<br>
+但都带来了更大安全隐患。Scott Meyers的《Effective C++ 3th》中的item21对以上行为做了详细的解释。顺便提一下，item4提供了一种单线程环境的解决方案，但在多线程环境下仍存在安全隐患。</p> <h2 id="解决方案"><a href="#解决方案" aria-hidden="true" class="header-anchor">#</a> 解决方案</h2> <p>为了解决这一问题，C++11一方面引入了移动语义(move semantics)，另一方面将在C++11之前已经被许多主流编译器所采用的copy elision纳入了标准中。</p> <h3 id="move-semantics"><a href="#move-semantics" aria-hidden="true" class="header-anchor">#</a> move semantics</h3> <h4 id="右值引用"><a href="#右值引用" aria-hidden="true" class="header-anchor">#</a> 右值引用</h4> <p>为了支持移动语义，C++11提出了右值引用(rvalue reference)以及移动构造(move constructor)函数和移动赋值运算符的概念。</p> <p>右值引用用&amp;&amp;来表示，用以表示即将销毁、不再使用的临时对象。而在类定义中的移动构造函数和移动赋值运算符的参数规定为右值引用，简单实现如下：</p> <div class="language- extra-class"><pre class="language-text"><code>class Object{
+    Object(Object&amp;&amp; src){
+        // 为方便起见并未考虑自赋值等其他情形
+        data = src.data;    // data往往为指向对象的指针，避免拷贝
+        src.data = nullptr; // “销毁”源对象(src)
+    }
+}
+</code></pre></div><p>即可以理解成通过将右值引用来“标记”临时对象，触发移动语义，使得在函数返回值或使用赋值运算符时，调用移动构造函数或移动赋值运算符，而不是调用拷贝构造运算符或拷贝赋值运算符，从而避免由于传值拷贝造成的不必要开销，提高性能。</p> <p>但在实际编程实践中，往往存在尽管一个对象是一个左值，但我们程序员希望对其像右值一样进行移动操作来避免拷贝操作所带来的开销，但通常我们不能直接将一个右值引用绑定到一个左值上：</p> <div class="language- extra-class"><pre class="language-text"><code>int &amp;&amp;rr1 = 42;     //  正确： 字面常量是右值
+int &amp;&amp;rr2 = rr1;    //  错误： 表达式rr1是左值
+</code></pre></div><p>为解决这一问题，C++11引入了std::move来将左值转换（cast）右值。</p> <h4 id="std-move工作基础"><a href="#std-move工作基础" aria-hidden="true" class="header-anchor">#</a> std::move工作基础</h4> <p>std::move的工作基础是C++对于右值引用的模板实参推断进行了如下规定：</p> <p>考虑如下模板函数：</p> <div class="language- extra-class"><pre class="language-text"><code>template &lt;typename T&gt; void func(T&amp;&amp;);
+</code></pre></div><p>通常按照我们不能直接将一个右值引用绑定到一个左值上的原则，假定i是一个int对象，那么显然有：</p> <div class="language- extra-class"><pre class="language-text"><code>func(42);   //  实参是一个int类型的右值；模板参数T是int
+func(i);    //  调用不合法，i是左值
+</code></pre></div><p>但是，C++定义了两条例外规则：</p> <p>首先，将左值传递给函数的右值引用参数时，编译器推断模板类型参数T为其左值引用类型。对于func(i)，T为int&amp;。</p> <p>在这种情况下，定义了引用折叠：</p> <ul><li>X&amp; &amp;、X&amp;&amp; &amp;和X&amp;&amp; &amp;都折叠成类型X &amp;</li> <li>类型X&amp;&amp; &amp;&amp;折叠成X&amp;&amp;</li></ul> <p>这也就使得我们可以将任意类型的实参传递给T&amp;&amp;类型的函数参数。</p> <h4 id="std-move"><a href="#std-move" aria-hidden="true" class="header-anchor">#</a> std::move</h4> <p>C++标准库中的std::move模板定义如下：</p> <div class="language- extra-class"><pre class="language-text"><code>template &lt;class _Ty&gt;
+typename remove_reference_t&lt;_Ty&gt;&amp;&amp; move(_Ty&amp;&amp; _Arg) noexcept {
+    return static_cast&lt;remove_reference_t&lt;_Ty&gt;&amp;&amp;&gt;(_Arg);
+}
+</code></pre></div><p>其中std::remove_reference&lt;_Ty&gt;::type 为类型_Ty的非引用类型。</p> <p>理解std::move最重要的是清楚std::move的作用并不是实现移动操作本身，而是实现一种cast，将左值转换成右值，有点类似于将变量Arg打上一个右值标记，强行触发移动语义，从而使得对象调用移动构造函数或移动赋值运算符，实际的移动操作仍需要在对象所属类的移动构造函数和移动赋值运算符中进行定义，这相当于告诉编译器这个对象作为赋值源对象时是可以丢弃的右值：</p> <div class="language- extra-class"><pre class="language-text"><code>std::string str(&quot;move&quot;);
+std::string&amp;&amp; rr1 = std::move(str);     //  单纯的绑定引用，未触发移动构造，
+                                        //  str内元素未被移动
+std::string rr2 = std::move(str);       //  触发移动构造，str内元素被移动
+</code></pre></div><h4 id="pefect-forwarding"><a href="#pefect-forwarding" aria-hidden="true" class="header-anchor">#</a> pefect forwarding</h4> <p>pefect forwarding的译名有完美转发，精确转发等，表示将实参联通类型不变地进行转发的行为。<br>
+C++11提供了std::forward用于实现pefect forwarding。</p> <p>std::forwarding的C++11标准库实现如下：</p> <div class="language- extra-class"><pre class="language-text"><code>template &lt;class _Ty&gt;
+_Ty&amp;&amp; forward( remove_reference_t&lt;_Ty&gt;&amp; _Arg ) noexcept {
+    return static_cast&lt;_Ty&amp;&amp;&gt;(_Arg);
+}
+template &lt;class _Ty&gt;
+_Ty&amp;&amp; forward( remove_reference_t&lt;_Ty&gt;&amp;&amp; _Arg ) noexcept {
+    return static_cast&lt;_Ty&amp;&amp;&gt;(_Arg);
+}
+</code></pre></div><p>可以看出与std::move不同的是，std::forward必须通过显式模板实参来调用，且std::forward&lt;_Ty&gt;返回类型是_Ty&amp;&amp;。</p> <p>因为如果_Ty是左值Type&amp;，则根据引用折叠，_Ty&amp;&amp;将折叠成Type&amp;，则forward将返回Type&amp;，<br>
+反之如果为右值Type&amp;，_Ty&amp;&amp;将折叠成Type&amp;&amp;，则forward将返回Type&amp;&amp;。</p> <h3 id="copy-elision"><a href="#copy-elision" aria-hidden="true" class="header-anchor">#</a> copy elision</h3> <p>copy elision直译为复制省略。来自于(named) return value optimization (返回值优化，(N)ROV)，是一种编译器用于优化函数返回值，避免拷贝开销的技术。C++98/03标准中并没有要求编译器提供这一技术，但当时主流的编译器如GCC，clang等都提供了这一技术，C++11将这一技术写入了标准，并将其称为copy elision。</p> <h4 id="细节"><a href="#细节" aria-hidden="true" class="header-anchor">#</a> 细节</h4> <p>C++11 draft N3225在section12.8的第32小点中是这么描述的：<br>
+（P.S. C++11标准的正式稿是N3242，但是太贵了。。不过N3225这份草稿基本是与C++11正式稿一致的。）</p> <div class="language- extra-class"><pre class="language-text"><code>32 When certain criteria are met, an implementation is allowed to omit the copy/move construction of a class
+object, even if the copy/move constructor and/or destructor for the object have side effects. In such cases,
+the implementation treats the source and target of the omitted copy/move operation as simply two different
+ways of referring to the same object, and the destruction of that object occurs at the later of the times
+when the two objects would have been destroyed without the optimization.123 This elision of copy/move
+operations, called copy elision, is permitted in the following circumstances (which may be combined to
+eliminate multiple copies):
+— in a return statement in a function with a class return type, when the expression is the name of a
+non-volatile automatic object (other than a function or catch-clause parameter) with the same cvunqualified type as the function return type, the copy/move operation can be omitted by constructing
+the automatic object directly into the function’s return value
+— in a throw-expression, when the operand is the name of a non-volatile automatic object (other than
+a function or catch-clause parameter) whose scope does not extend beyond the end of the innermost
+enclosing try-block (if there is one), the copy/move operation from the operand to the exception
+object (15.1) can be omitted by constructing the automatic object directly into the exception object
+— when a temporary class object that has not been bound to a reference (12.2) would be copied/moved
+to a class object with the same cv-unqualified type, the copy/move operation can be omitted by
+constructing the temporary object directly into the target of the omitted copy/move
+— when the exception-declaration of an exception handler (Clause 15) declares an object of the same type
+(except for cv-qualification) as the exception object (15.1), the copy/move operation can be omitted
+by treating the exception-declaration as an alias for the exception object if the meaning of the program
+will be unchanged except for the execution of constructors and destructors for the object declared by
+the exception-declaration.
+</code></pre></div><p>并给出了一个例子：</p> <div class="language- extra-class"><pre class="language-text"><code>class Thing {
+public:
+  Thing();
+  ~Thing();
+  Thing(const Thing&amp;);
+};
+Thing f() {
+  Thing t;
+  return t;
+}
+
+Thing t2 = f();
+</code></pre></div><p>还给出了解释：</p> <div class="language- extra-class"><pre class="language-text"><code>Here the criteria for elision can be combined to eliminate two calls to the copy constructor of class Thing:
+the copying of the local automatic object t into the temporary object for the return value of function f()
+and the copying of that temporary object into object t2. Effectively, the construction of the local object
+t can be viewed as directly initializing the global object t2, and that object’s destruction will occur at
+program exit. Adding a move constructor to Thing has the same effect, but it is the move construction from
+the temporary object to t2 that is elided. — end example ]
+</code></pre></div><p>也就是说对于语句<code>Thing t2 = f();</code>存在两个可以优化的拷贝操作，首先是<code>f()</code>函数调用返回语句时有：</p> <div class="language- extra-class"><pre class="language-text"><code>Thing temp_t = t;
+</code></pre></div><p>这对应第32小点中的第一种情况return statement，然后是函数体执行结束，得到返回值：</p> <div class="language- extra-class"><pre class="language-text"><code>Thing t2 = temp_t;
+</code></pre></div><p>这对应于第三种情况没有绑定引用的临时变量。</p> <p>为了更好的了解这一行为，在类成员函数中加入输出语句：</p> <div class="language- extra-class"><pre class="language-text"><code>class Thing {
+public:
+  Thing(){
+      std::cout &lt;&lt; &quot;constructor.&quot; &lt;&lt; std::endl;
+  }
+  ~Thing(){
+      std::cout &lt;&lt; &quot;destructor.&quot; &lt;&lt; std::endl;
+  }
+  Thing(const Thing&amp;){
+      std::cout &lt;&lt; &quot;copy constructor.&quot; &lt;&lt; std::endl;
+  }
+};
+</code></pre></div><p>其输出为（#为注释符，其后为注释而非输出）：</p> <div class="language- extra-class"><pre class="language-text"><code>constructor.    # t2.constructor
+destructor.     # main() ends, t2.destrctor
+</code></pre></div><p>而在<code>f()</code>函数中加入if-else分支后：</p> <div class="language- extra-class"><pre class="language-text"><code>Thing f(int n) {
+  Thing t, t1;
+  if(n &gt; 10){
+      return t;
+  }
+  else{
+      return t1;
+  }
+}
+
+Thing t2 = f(1);
+</code></pre></div><p>其输出为：</p> <div class="language- extra-class"><pre class="language-text"><code>constructor.    # t and t1
+constructor.    # constructor
+copy constructor.   # temp_t = t or t1, ' t2 = temp_t ' is optimized
+destructor.     # t and t1
+destructor.     # destructor
+destructor.     # main() ends, t2.destructor
+</code></pre></div><p>由于加入了if-else分支，并不属于第32小点中所描述的四种情况，因此在函数返回值的赋值过程中并没有执行优化。</p> <h4 id="与std-move的比较"><a href="#与std-move的比较" aria-hidden="true" class="header-anchor">#</a> 与std::move的比较</h4> <p>可以看出，在满足第一种情况下的函数中，<code>copy elision</code>能够提供更好的优化能力，出于安全考虑并不能返回Type&amp;&amp;，即函数返回语句不能为<code>return std::move(obj);</code>，因为这会带来安全隐患，得不偿失。但std::move可以辅助程序员在编译器无法优化的地方进行优化。</p> <h2 id="reference"><a href="#reference" aria-hidden="true" class="header-anchor">#</a> reference</h2> <ul><li><a href="http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2011/n3242.pdf" target="_blank" rel="noopener noreferrer">C++11 draft N3242 section 12.8(32)<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2006/n2027.html#Move_Semantics" target="_blank" rel="noopener noreferrer">A Brief Introduction to Rvalue References<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://stackoverflow.com/questions/3413470/what-is-stdmove-and-when-should-it-be-used" target="_blank" rel="noopener noreferrer">What is std::move(), and when should it be used?<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://en.wikipedia.org/wiki/C%2B%2B11#Rvalue_references_and_move_constructors" target="_blank" rel="noopener noreferrer">Rvalue references and move constructors<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://en.wikipedia.org/wiki/Copy_elision" target="_blank" rel="noopener noreferrer">Copy elision<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://en.cppreference.com/w/cpp/language/copy_elision" target="_blank" rel="noopener noreferrer">Copy elision<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://www.zhihu.com/question/50652989" target="_blank" rel="noopener noreferrer">关于C++右值及std::move()的疑问？<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://www.ibm.com/developerworks/community/blogs/5894415f-be62-4bc0-81c5-3956e82276f3/entry/RVO_V_S_std_move?lang=en" target="_blank" rel="noopener noreferrer">RVO V.S. std::move<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://stackoverflow.com/questions/2131904/trusting-the-return-value-optimization" target="_blank" rel="noopener noreferrer">Trusting the Return Value Optimization<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://docs.microsoft.com/en-us/previous-versions/ms364057(v=vs.80)?redirectedfrom=MSDN#nrvo_cpp05_topic3" target="_blank" rel="noopener noreferrer">Named Return Value Optimization in Visual C++ 2005<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li><a href="https://stackoverflow.com/questions/15413037/what-does-cv-unqualified-mean-in-c" target="_blank" rel="noopener noreferrer">What does “cv-unqualified” mean in C++?<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></li> <li>C++ primer 5th</li> <li>Effective C++ 3th</li></ul></div> <div class="page-edit"><!----> <div class="last-updated"><span class="prefix">Last Updated: </span> <span class="time">9/11/2019, 4:49:46 PM</span></div></div> <!----> </div> <!----></div></div>
+    <script src="/assets/js/app.5cd958a4.js" defer></script><script src="/assets/js/4.11e6c145.js" defer></script>
+  </body>
+</html>
